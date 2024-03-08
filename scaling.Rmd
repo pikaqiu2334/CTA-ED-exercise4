@@ -1,6 +1,6 @@
 ---
-title: "CTA-ED Exercise 4: Scaling techniques"
-author: "[Your full name here]"
+title: "CTA-ED Exercise 4: Scaling techniques (with correct answers)"
+author: "Marion Lieutaud"
 date: "6/03/2024"
 output: html_document
 ---
@@ -87,6 +87,7 @@ Once we have our data in this format, we are able to group and trim the document
 ```{r}
 # compress the document-feature matrix at the newspaper level
 dfm_newstweets <- dfm_group(dfm_tweets, groups = newspaper)
+
 # remove words not used by two or more newspapers
 dfm_newstweets <- dfm_trim(dfm_newstweets, 
                                 min_docfreq = 2, docfreq_type = "count")
@@ -172,4 +173,27 @@ dim(kaneko_dfm_study1)
 ## Exercises
 
 1. Estimate a wordfish model for the @kaneko_estimating_2021 data
+
+```{r}
+#### estimate the Wordfish model ####
+set.seed(123L)
+kaneko_dfm_results <- textmodel_wordfish(kaneko_dfm_study1, 
+                                             sparse = TRUE)
+summary(kaneko_dfm_results)
+```
+
 2. Visualize the results
+```{r, fig.cap="Wordfish model estimates of Japanese newspapers' editorial texts}
+## We can then plot our estimates of the thetas---i.e., the estimates of the latent Japanese newspaper position.
+textplot_scale1d(kaneko_dfm_results)
+```
+
+3 papers appear to stand out, apart from the rest, with a theta close to 1: Yomiuri, Nikkei and Sankei. 
+According to Kaneko's et all's review, these three newspaper correspond to the three national, high-circulation and right-leaning papers. On the other end of the spectrum, Chunichi and Asahi are considered left-leaning, which suggests that the wordfish model has captured a left-rigth dimension, although Mainichi is also considered left and appears in the middle rather than to the left of the theta x-axis. This could support Abe (2015)'s findings, reported in the article, that Mainichi is in fact closer to the centre than to the left of the political spectrum. The group of 5 papers around the middle of our plot comprises otherwise liberal and regional newspapers (e.g. Hokkaido and Chunichi)
+
+
+```{r}
+textplot_scale1d(kaneko_dfm_results, margin = "features")
+```
+
+I can't read Japanese characters so I have no idea what words are important here. Can't really interpret much. 
