@@ -1,5 +1,5 @@
 ---
-title: "CTA-ED Exercise 4: Scaling techniques (with correct answers)"
+title: "CTA-ED Exercise 4: Scaling techniques缩放技术 (with correct answers)"
 author: "Marion Lieutaud"
 date: "6/03/2024"
 output: html_document
@@ -12,8 +12,11 @@ The hands-on exercise for this week focuses on: 1) scaling texts ; 2) implementi
 In this tutorial, you will learn how to:
   
 * Scale texts using the "wordfish" algorithm
+使用“wordfish”算法缩放文本
 * Scale texts gathered from online sources
+缩放从在线来源收集的文本
 * Replicate analyses by @kaneko_estimating_2021
+复制@kaneko_estimating_2021 的分析
 
 Before proceeding, we'll load the packages we will need for this tutorial.
 
@@ -22,10 +25,19 @@ library(kableExtra)
 ```
 
 ```{r, message=F}
-library(dplyr)
-library(quanteda) # includes functions to implement Lexicoder
-library(quanteda.textmodels) # for estimating similarity and complexity measures
-library(quanteda.textplots) #for visualizing text modelling results
+library(dplyr) #用于数据操作和转换，提供了一些方便的数据处理函数。
+library(quanteda) # includes functions to implement Lexicoder 用于文本分析和自然语言处理，包含实现 Lexicoder 的函数。
+library(quanteda.textmodels) # for estimating similarity and complexity measures 用于估计文本相似性和复杂性度量
+library(quanteda.textplots) #for visualizing text modelling results 用于可视化文本建模结果
+```
+
+
+```{r, message=F}
+library(ggplot2)
+```
+
+
+```{r, message=F}
 ```
 
 In this exercise we'll be using the dataset we used for the sentiment analysis exercise. The data were collected from the Twitter accounts of the top eight newspapers in the UK by circulation. The tweets include any tweets by the news outlet from their main account. 
@@ -38,11 +50,12 @@ If you're working on this document from your own computer ("locally") you can do
 tweets  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/sentanalysis/newstweets.rds?raw=true")))
 ```
 
-We first take a sample from these data to speed up the runtime of some of the analyses. 
+We first take a sample from these data to speed up the runtime of some of the analyses. 我们首先从这些数据中取样本，以加快某些分析的运行速度。
 
 ```{r}
 tweets <- tweets %>%
-  sample_n(20000)
+  sample_n(20000) #这是 dplyr 包中的一个函数，用于从数据框中随机抽取指定数量的记录，这里是 20,000 条
+
 ```
 
 ## Construct `dfm` object
@@ -50,77 +63,93 @@ tweets <- tweets %>%
 Then, as in the previous exercise, we create a corpus object, specify the document-level variables by which we want to group, and generate our document feature matrix. 
 
 ```{r}
-#make corpus object, specifying tweet as text field
-tweets_corpus <- corpus(tweets, text_field = "text")
+#make corpus object, specifying tweet as text field 创建语料库对象，指定推文文本字段
+tweets_corpus <- corpus(tweets, text_field = "text") #使用 quanteda 包中的 corpus 函数创建一个语料库对象，指定 tweets 数据框中的 text 列作为文本字段。
 
-#add in username document-level information
+#add in username document-level information 添加用户名作为文档级别的信息
 docvars(tweets_corpus, "newspaper") <- tweets$user_username
+ #将 tweets 数据框中的 user_username 列添加到语料库对象 tweets_corpus 中，作为文档级别的变量，命名为 newspaper。
 
 dfm_tweets <- dfm(tokens(tweets_corpus,
                     remove_punct = TRUE)) %>%
+  #tokens(tweets_corpus, remove_punct = TRUE)：将语料库对象 tweets_corpus 转换为标记（tokens），并移除标点符号。 dfm(tokens(...))：将标记转换为文档-特征矩阵（DFM）。
   dfm_select(pattern = stopwords("english"), 
              selection = "remove",
              valuetype = "fixed")
+#dfm_select(pattern = stopwords("english"), selection = "remove", valuetype = "fixed")：从 DFM 中移除英文停用词。
+
 ```
 
 We can then have a look at the number of documents (tweets) we have per newspaper Twitter account. 
+然后我们可以查看每个报纸 Twitter帐户拥有的文档（推文）数量。
 
 ```{r}
 
-## number of tweets per newspaper
-table(docvars(dfm_tweets, "newspaper"))
+## number of tweets per newspaper 每个报纸（用户）发布的推文数量
+table(docvars(dfm_tweets, "newspaper")) #docvars(dfm_tweets, "newspaper")：提取文档-特征矩阵 dfm_tweets 中的文档级别变量 newspaper，即用户名。table(...)：计算每个用户名（报纸）发布的推文数量，并以表格形式显示结果。
 
 ```
 
 And this is what our document feature matrix looks like, where each word has a count for each of our eight newspapers. 
-
+这就是我们的文档特征矩阵的样子，其中每个单词对应着我们八份报纸的计数。
 ```{r}
 
-dfm_tweets
+dfm_tweets 
+#显示 dfm_tweets 对象的内容和结构。dfm_tweets 是一个文档-特征矩阵（DFM），包含了处理过的推文文本数据。它的输出通常包括以下信息：文档数量：推文的数量。 特征数量：不同词汇（特征）的数量。 非零条目：矩阵中非零值的数量。 稀疏度（sparse）：矩阵的稀疏度，即非零条目占总条目的比例。
 
 ```
 
 ## Estimate wordfish model
 
 Once we have our data in this format, we are able to group and trim the document feature matrix before estimating the wordfish model.
+一旦我们有了这种格式的数据，我们就能够在估计 wordfish 模型之前对文档特征矩阵进行分组和修剪。
 
 ```{r}
-# compress the document-feature matrix at the newspaper level
+# compress the document-feature matrix at the newspaper level 压缩文档-特征矩阵到报纸级别
 dfm_newstweets <- dfm_group(dfm_tweets, groups = newspaper)
+# dfm_group(dfm_tweets, groups = newspaper)将文档-特征矩阵 dfm_tweets 按 newspaper 分组，压缩到报纸级别。
 
-# remove words not used by two or more newspapers
+# remove words not used by two or more newspapers 移除在少于两家报纸中出现的词汇
 dfm_newstweets <- dfm_trim(dfm_newstweets, 
                                 min_docfreq = 2, docfreq_type = "count")
 
-## size of the document-feature matrix
+## size of the document-feature matrix 查看压缩后的文档-特征矩阵的大小（行数和列数）
 dim(dfm_newstweets)
 
 #### estimate the Wordfish model ####
-set.seed(123L)
-dfm_newstweets_results <- textmodel_wordfish(dfm_newstweets, 
-                                             sparse = TRUE)
+set.seed(123L) #设置随机种子以确保结果可重复 随机种子：在计算机中，随机数生成器使用一个初始值（种子）来产生随机数序列。相同的种子会生成相同的随机数序列。 可重复性：通过设置随机种子，您可以确保每次运行代码时，随机过程（如抽样、打乱顺序等）的结果都是相同的。这对于调试和分享代码非常重要，因为它确保了结果的一致性。
+
+dfm_newstweets_results <- textmodel_wordfish(dfm_newstweets)
+#textmodel_wordfish(dfm_newstweets)：估计 Wordfish 模型，使用压缩后的文档-特征矩阵 dfm_newstweets。
+#这段代码的结果是一个 Wordfish 模型dfm_newstweets_results，它估计了每个报纸在一维空间中的位置。
 
 ```
 
 And this is what results.
 
 ```{r}
-summary(dfm_newstweets_results)
+summary(dfm_newstweets_results) #dfm_newstweets_results 对象的摘要信息。主要包括文档的位置估计值（theta）及其标准误（se.theta），以及每个特征（词汇）的分数（beta 和 psi）
+
 ```
 
 We can then plot our estimates of the $\theta$s---i.e., the estimates of the latent newspaper position---as so.
+然后，我们可以绘制出对 $\theta$s 的估计值——即对潜在报纸位置的估计值。
 
 ```{r}
-textplot_scale1d(dfm_newstweets_results)
+textplot_scale1d(dfm_newstweets_results) #这个函数来自 quanteda.textplots 包，用于绘制一维标度模型（如 Wordfish）的结果。它会生成一个图表，显示每个文档（报纸）在一维空间中的位置。图表中每个点代表一个文档（报纸），其位置由 Wordfish 模型估计的 theta 值决定。
+
 ```
 
-Interestingly, we seem not to have captured ideology but some other tonal dimension. We see that the tabloid newspapers are scored similarly, and grouped toward the right hand side of this latent dimension; whereas the broadsheet newspapers have an estimated theta further to the left.
+Interestingly, we seem not to have captured ideology（意识形态） but some other tonal dimension（音调维度）. We see that the tabloid newspapers are scored similarly, and grouped toward the right hand side of this latent dimension; whereas the broadsheet newspapers have an estimated theta further to the left.
+有趣的是，我们似乎没有捕捉到意识形态，而是捕捉到了其他一些音调维度。我们发现小报的得分相似，并被归类到这个潜在维度的右侧；而大报的估计值则更靠左。
 
 Plotting the "features," i.e., the word-level betas shows how words are positioned along this dimension, and which words help discriminate between news outlets.
+绘制“特征”，即单词级 beta 值，可以显示单词在这个维度上的定位，以及哪些单词有助于区分新闻媒体。
 
 ```{r}
 
 textplot_scale1d(dfm_newstweets_results, margin = "features")
+#通过设置 margin = "features"可以可视化特征（词汇）在一维空间中的位置，图表中每个点代表一个特征（词汇），其位置由 Wordfish 模型估计的 beta 值决定。这有助于直观地理解哪些词汇在模型中具有较大的影响力。
 
 ```
 
@@ -128,22 +157,25 @@ And we can also look at these features.
 
 ```{r}
 
-features <- dfm_newstweets_results[["features"]]
+features <- dfm_newstweets_results[["features"]] #提取 Wordfish 模型中的特征（词汇）。
 
-betas <- dfm_newstweets_results[["beta"]]
+betas <- dfm_newstweets_results[["beta"]] #提取 Wordfish 模型中的 beta 值（特征分数）。
 
 feat_betas <- as.data.frame(cbind(features, betas))
 feat_betas$betas <- as.numeric(feat_betas$betas)
+#将特征和 beta 值合并为数据框，并将 beta 值转换为数值类型。
 
 feat_betas %>%
   arrange(desc(betas)) %>%
   top_n(20) %>% 
   kbl() %>%
   kable_styling(bootstrap_options = "striped")
+#使用 dplyr 包对数据框进行排序，按 beta 值降序排列，并选择前 20 个特征。使用 kableExtra包将结果格式化为一个带有条纹样式的表格。
 
 ```
 
 These words do seem to belong to more tabloid-style reportage, and include emojis relating to film, sports reporting on "cristiano" as well as more colloquial terms like "saucy."
+这些词语似乎确实属于小报风格的报道，其中包括与电影、有关“克里斯蒂亚诺”的体育报道有关的表情符号以及“无礼”等更口语化的词语。
 
 ## Replicating Kaneko et al.
 
@@ -157,17 +189,20 @@ kaneko_dfm  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/d
 ```
 
 This data is in the form a document-feature-matrix. We can first manipulate it in the same way as @kaneko_estimating_2021 by grouping at the level of newspaper and removing infrequent words.
-
+这些数据的形式是文档特征矩阵。我们可以首先按照与@kaneko_estimating_2021相同的方式对其进行操作，即在报纸级别进行分组并删除不常用的单词。
 ```{r}
-table(docvars(kaneko_dfm, "Newspaper"))
+table(docvars(kaneko_dfm, "Newspaper")) #计算并显示 kaneko_dfm 中每个报纸（Newspaper）的文档数量。
+
 ## prepare the newspaper-level document-feature matrix
 # compress the document-feature matrix at the newspaper level
-kaneko_dfm_study1 <- dfm_group(kaneko_dfm, groups = Newspaper)
-# remove words not used by two or more newspapers
-kaneko_dfm_study1 <- dfm_trim(kaneko_dfm_study1, min_docfreq = 2, docfreq_type = "count")
+kaneko_dfm_study1 <- dfm_group(kaneko_dfm, groups = Newspaper) #将文档-特征矩阵 kaneko_dfm 按 Newspaper 分组，压缩到报纸级别，生成新的文档-特征矩阵 kaneko_dfm_study1。
 
-## size of the document-feature matrix
-dim(kaneko_dfm_study1)
+# remove words not used by two or more newspapers
+kaneko_dfm_study1 <- dfm_trim(kaneko_dfm_study1, min_docfreq = 2, docfreq_type = "count") #移除在少于两家报纸中出现的词汇，进一步修剪文档-特征矩阵 kaneko_dfm_study1。
+
+## size of the document-feature matrix 
+dim(kaneko_dfm_study1) #查看压缩和修剪后的文档-特征矩阵 kaneko_dfm_study1 的大小（行数和列数）。
+
 ```
 
 ## Exercises
@@ -175,17 +210,43 @@ dim(kaneko_dfm_study1)
 1. Estimate a wordfish model for with Kaneko (2021)'s data
 
 ```{r}
-## estimate the Wordfish model
+## estimate the Wordfish model  
+#Estimating the Wordfish model 估计 Wordfish 模型
+set.seed(123L)
+kaneko_wordfish_results <- textmodel_wordfish(kaneko_dfm_study1)
 
+# View Model Summary 查看模型摘要
+summary(kaneko_wordfish_results)
 ```
 Write a paragraph here explaining and interpreting your results 
 
+The position value (theta) indicates the relative position of each newspaper in a one-dimensional space. Positive values indicate newspapers with similar characteristics in one dimension, while negative values indicate newspapers with similar characteristics in the opposite dimension. The standard error (se) indicates the uncertainty of the estimated position.
+位置值（theta）表示每个报纸在一维空间中的相对位置。正值表示在某个维度上具有相似特征的报纸，而负值表示在相反维度上具有相似特征的报纸。标准误（se）表示估计位置的不确定性。
+
+Yomiuri and Nikkei have high theta values, indicating that they have similar characteristics in one dimension, while Chunichi and Asahi have low theta values, indicating that they have similar characteristics in the opposite dimension.
+Yomiuri 和 Nikkei 的 theta 值较高，表示它们在某个维度上具有相似的特征，而 Chunichi 和 Asahi 的 theta 值较低，表示它们在相反的维度上具有相似的特征。
+
+
 2. Visualize the results
 ```{r, fig.cap="Wordfish model estimates of Japanese newspapers' editorial texts}
-## We can then plot our estimates of the thetas---i.e., the estimates of the latent Japanese newspaper position.
+## We can then plot our estimates of the thetas---i.e., the estimates of the latent Japanese newspaper position.然后，我们可以绘制出我们对 theta 的估计值，即对潜在日本报纸位置的估计值。
+
+# Visualize document location 可视化文档位置（文档位置图）
+textplot_scale1d(kaneko_wordfish_results) 
+
+# Visualizing feature locations 可视化特征位置（特征位置图）
+textplot_scale1d(kaneko_wordfish_results, margin = "features") 
 ```
+The interpretation of your plot(s)
+1.Document location graph 文档位置图 
+Positive value (right side): Yomiuri, Nikkei, and Sankei have higher theta values, indicating that they have similar reporting tendencies on certain topics.
+正值（右侧）:Yomiuri，Nikkei和Sankei的 theta 值较高，表示它们在某些主题上有相似的报道倾向。
+Negative value (left side): Chunichi and Asahi have lower theta values, indicating that they have similar reporting tendencies in opposite directions.
+负值（左侧）:Chunichi 和 Asahi 的 theta 值较低，表示它们在相反的方向上有相似的报道倾向。
 
-Write here the interpretation of your plot(s)
+2.Feature Position Graph 特征位置图
+Positive values(right side): Indicates that these words appear more frequently in newspapers with higher theta values. Certain words appear frequently in Yomiuri and Nikkei, and the beta values of these words will be high.
+正值（右侧）：表示这些词汇在 theta 值较高的报纸中更常出现。某些词汇在 Yomiuri 和 Nikkei 中频繁出现，这些词汇的 beta 值会较高。
 
-Don't forget to knit!
-
+Negative values(left side): Indicates that these words appear more frequently in newspapers with lower theta values. Certain words appear frequently in Chunichi and Asahi, and the beta values of these words will be lower.
+负值（左侧）：表示这些词汇在 theta 值较低的报纸中更常出现。某些词汇在 Chunichi 和 Asahi 中频繁出现，这些词汇的 beta 值会较低。
